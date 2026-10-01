@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+
+{% block title %}ECL Audit & Benchmarking Workbench — PSAK 413 Syariah{% endblock %}
+
+{% block content %}
+<div class="page-container">
+    <!-- Header Banner -->
+    <div class="page-header">
+        <div class="header-title-group">
+            <h1>ECL Audit & Benchmarking Workbench</h1>
+            <p class="header-desc">
+                Dual-Methodology ECL Transparency Workbench — Perbandingan Transparan Per Rekening Antara Metode Sederhana Bank (Excel/DPD), Metode Syariah Murni, dan Nilai Final Buku Besar.
+            </p>
+        </div>
+        <div class="header-badge-group">
+            <span class="header-badge green-badge">
+                <span class="pulse-dot"></span> Mode Direct SQL Server (ipsak413)
+            </span>
+            <span class="header-badge purple-badge" title="BR-AUD-01: Modul bersifat Read-Only untuk analisis audit tanpa merusak GL">
+                🔒 BR-AUD-01 Read-Only
+            </span>
+        </div>
+    </div>
+
+    <!-- Summary Metrics Grid -->
+    <div class="metrics-grid">
+        <div class="metric-card">
+            <div class="metric-icon blue">📋</div>
+            <div class="metric-data">
+                <span class="metric-label">Total Rekening Portofolio</span>
+                <span class="metric-value">{{ "{:,}".format(total_accounts) }}</span>
+            </div>
+        </div>
+        
+        <div class="metric-card">
+            <div class="metric-icon orange">🏦</div>
+            <div class="metric-data">
+                <span class="metric-label">1. Total CKPN Metode Bank (Excel)</span>
+                <span class="metric-value">Rp {{ "{:,.2f}".format(total_ckpn_bank) }}</span>
+            </div>
+        </div>
+        
+        <div class="metric-card">
+            <div class="metric-icon green">⚖️</div>
+            <div class="metric-data">
+                <span class="metric-label">2. Total CKPN Syariah Engine</span>
+                <span class="metric-value">Rp {{ "{:,.2f}".format(total_ckpn_syariah) }}</span>
+            </div>
+        </div>
+        
+        <div class="metric-card">
+            <div class="metric-icon {% if total_gap >= 0 %}purple{% else %}red{% endif %}">🛡️</div>
+            <div class="metric-data">
+                <span class="metric-label">Total Selisih (Safety Margin Gap)</span>
+                <span class="metric-value {% if total_gap >= 0 %}positive-gap{% else %}negative-gap{% endif %}">
+                    {% if total_gap > 0 %}+{% endif %}Rp {{ "{:,.2f}".format(total_gap) }}
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter & Search Toolbar (Input Filter per Rekening & Segmen Portofolio) -->
+    <div class="toolbar-card">
+        <form action="/ecl-audit-benchmarking-workbench" method="get" class="search-form">
+            <div class="search-input-group">
+                <span class="search-icon">🔍</span>
+                <input 
+                    type="text" 
+                    name="q" 
+                    value="{{ search_query or '' }}" 
+                    placeholder="Cari berdasarkan Nomor Rekening atau Nama Debitur..." 
+                    class="search-input"
+                >
+            </div>
+
+            <!-- Filter Segmen Portofolio (Rujukan: select * from segment where KodeForm = 'ECL') -->
+            <div class="select-group">
+                <select name="segmen" class="select-input">
+                    <option value="ALL" {% if not selected_segmen or selected_segmen == 'ALL' %}selected{% endif %}>-- Semua Segmen --</option>
+                    {% for seg in segment_list %}
+                    <option value="{{ seg.id }}" {% if selected_segmen == (seg.id|string) or selected_segmen == seg.name %}selected{% endif %}>
+                        {{ seg.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Filter Data</button>
+            <a href="/ecl-audit-benchmarking-workbench/export-excel?q={{ search_query or '' }}&segmen={{ selected_segmen or 'ALL' }}" class="btn btn-excel" title="Download data hasil filter dalam format Excel (.xlsx)">
+                <span>📥</span> Export Excel
+            </a>
+            {% if search_query or (selected_segmen and selected_segmen != 'ALL') %}
+            <a href="/ecl-audit-benchmarking-workbench" class="btn btn-secondary">Reset</a>
+            {% endif %}
+        </form>
+    </div>
+
+    <!-- Main Comparison Workbench Data Table (Menyandingkan 3 Komponen Utama) -->
+    <div class="table-card">
+        <div class="table-header">
+            <div>
+                <h3>Matrix Uji Banding 3 Komponen Utama Per Rekening</h3>
+                <span class="table-subtitle">Menyandingkan: (1) Metode Bank / Excel, (2) Metode Syariah Murni, dan (3) Nilai Final Buku Besar</span>
+            </div>
+            <div class="table-stats-badge">
+                Halaman {{ page }} dari {{ total_pages }}
+            </div>
+        </div>
+        
+        <div class="table-responsive">
+            <table class="workbench-table">
+                <thead>
+                    <tr>
+                        <th>No Rekening</th>
+                        <th>Nama Debitur & Akad</th>
+                        <th>Segmen</th>
+                        <th class="text-right">Baki Debet Kotor</th>
+                        <th class="text-right">EAD Bersih Riba</th>
+                        <th class="text-right color-bank">1. Metode Bank</th>
+                        <th class="text-right color-syariah">2. Metode Syariah</th>
+                        <th class="text-right color-gl">3. Final Buku Besar</th>
+                        <th class="text-right">Selisih Gap</th>
+                        <th>Analisis Kepatuhan & Risiko</th>
+                        <th class="text-center">Aksi Audit</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr>
+                        <td class="font-mono font-semibold">{{ item.no_rekening }}</td>
+                        <td>
+                            <div class="debtor-name">{{ item.nama_debitur }}</div>
+                            <span class="badge-akad">{{ item.jenis_akad }}</span>
+                        </td>
+                        <td><span class="badge-segmen">{{ item.segmen }}</span></td>
+                        <td class="text-right font-mono">Rp {{ "{:,.2f}".format(item.baki_debet_kotor) }}</td>
+                        <td class="text-right font-mono text-cyan">Rp {{ "{:,.2f}".format(item.ead_bersih_syariah) }}</td>
+                        
+                        <!-- 1. Metode Bank -->
+                        <td class="text-right font-mono text-orange">Rp {{ "{:,.2f}".format(item.ckpn_metode_bank) }}</td>
+                        
+                        <!-- 2. Metode Syariah Murni -->
+                        <td class="text-right font-mono text-green">Rp {{ "{:,.2f}".format(item.ckpn_metode_aplikasi) }}</td>
+                        
+                        <!-- 3. Nilai Final Buku Besar -->
+                        <td class="text-right font-mono text-purple">Rp {{ "{:,.2f}".format(item.nil_final_buku_besar) }}</td>
+                        
+                        <td class="text-right font-mono font-bold {% if item.selisih_gap > 0 %}text-positive{% elif item.selisih_gap < 0 %}text-negative{% else %}text-muted{% endif %}">
+                            {% if item.selisih_gap > 0 %}+{% endif %}Rp {{ "{:,.2f}".format(item.selisih_gap) }}
+                        </td>
+                        <td>
+                            {% if 'GAP POSITIF' in item.faktor_penyebab_gap %}
+                                <span class="status-badge badge-gap-positive" title="{{ item.faktor_penyebab_gap }}">
+                                    ⚠️ GAP POSITIF (SICR Risk)
+                                </span>
+                            {% elif 'GAP NEGATIF' in item.faktor_penyebab_gap %}
+                                <span class="status-badge badge-gap-negative" title="{{ item.faktor_penyebab_gap }}">
+                                    ✂️ GAP NEGATIF (Steril Margin)
+                                </span>
+                            {% else %}
+                                <span class="status-badge badge-aligned" title="{{ item.faktor_penyebab_gap }}">
+                                    ✅ ALIGNED
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <a href="/ecl-audit-benchmarking-workbench/audit/{{ item.no_rekening }}" class="btn-action">
+                                Rincian Audit
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="11" class="text-center empty-state">
+                            Tidak ada data rekening yang cocok dengan kriteria pencarian filter.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination Toolbar -->
+        <div class="pagination-toolbar">
+            <div class="pagination-info">
+                Menampilkan <strong>{{ start_index }} - {{ end_index }}</strong> dari <strong>{{ "{:,}".format(total_filtered) }}</strong> rekening
+                {% if (selected_segmen and selected_segmen != 'ALL') or search_query %}
+                    <span class="filter-indicator">(Terfilter)</span>
+                {% endif %}
+            </div>
+
+            <div class="pagination-controls">
+                <form action="/ecl-audit-benchmarking-workbench" method="get" class="limit-form">
+                    {% if search_query %}<input type="hidden" name="q" value="{{ search_query }}">{% endif %}
+                    {% if selected_segmen %}<input type="hidden" name="segmen" value="{{ selected_segmen }}">{% endif %}
+                    <input type="hidden" name="page" value="1">
+                    <label for="limit-select" class="limit-label">Tampilkan per Halaman:</label>
+                    <select id="limit-select" name="limit" class="limit-select" onchange="this.form.submit()">
+                        <option value="10" {% if limit == 10 %}selected{% endif %}>10</option>
+                        <option value="25" {% if limit == 25 %}selected{% endif %}>25</option>
+                        <option value="50" {% if limit == 50 %}selected{% endif %}>50</option>
+                        <option value="100" {% if limit == 100 %}selected{% endif %}>100</option>
+                    </select>
+                </form>
+
+                <div class="pagination-buttons">
+                    {% if has_prev %}
+                    <a href="/ecl-audit-benchmarking-workbench?page={{ prev_page }}&limit={{ limit }}&q={{ search_query or '' }}&segmen={{ selected_segmen or 'ALL' }}" class="btn-page">
+                        &laquo; Prev
+                    </a>
+                    {% else %}
+                    <span class="btn-page disabled">&laquo; Prev</span>
+                    {% endif %}
+
+                    {% for p in page_numbers %}
+                    {% if p == page %}
+                    <span class="btn-page active">{{ p }}</span>
+                    {% else %}
+                    <a href="/ecl-audit-benchmarking-workbench?page={{ p }}&limit={{ limit }}&q={{ search_query or '' }}&segmen={{ selected_segmen or 'ALL' }}" class="btn-page">
+                        {{ p }}
+                    </a>
+                    {% endif %}
+                    {% endfor %}
+
+                    {% if has_next %}
+                    <a href="/ecl-audit-benchmarking-workbench?page={{ next_page }}&limit={{ limit }}&q={{ search_query or '' }}&segmen={{ selected_segmen or 'ALL' }}" class="btn-page">
+                        Next &raquo;
+                    </a>
+                    {% else %}
+                    <span class="btn-page disabled">Next &raquo;</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

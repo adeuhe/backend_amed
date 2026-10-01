@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}ECL Audit & Benchmarking Workbench{% endblock %}</title>
+    <!-- Local System Fonts (100% Offline Compatible) -->
+    <link rel="stylesheet" href="/static-audit-benchmarking-workbench/css/style.css">
+</head>
+<body>
+    <!-- Top Header Navigation -->
+    <header class="top-nav">
+        <div class="nav-container">
+            <div class="brand-logo">
+                <div class="logo-icon">⚖️</div>
+                <div class="brand-text">
+                    <span class="brand-title">ECL Audit & Benchmarking Workbench</span>
+                    <span class="brand-subtitle">PSAK 413 Syariah • Transparency Engine</span>
+                </div>
+            </div>
+            <nav class="nav-links">
+                <a href="/ecl-audit-benchmarking-workbench" class="nav-link {% if active_page == 'workbench' %}active{% endif %}">
+                    <span>📊</span> Workbench Uji Banding
+                </a>
+                <a href="/api/audit/workbench" class="nav-link" target="_blank">
+                    <span>⚡</span> API JSON Data
+                </a>
+                <a href="/docs" class="nav-link" target="_blank">
+                    <span>📖</span> Swagger Docs
+                </a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+        <div class="footer-container">
+            <p>© 2026 Engine PSAK 413 Syariah — Dual-Methodology ECL Comparative & Transparency Audit Workbench</p>
+        </div>
+    </footer>
+</body>
+</html>
+

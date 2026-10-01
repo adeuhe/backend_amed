@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+
+{% block title %}Rincian Audit Transparansi — Rekening {{ record.no_rekening }}{% endblock %}
+
+{% block content %}
+<div class="page-container">
+    <!-- Breadcrumb Nav -->
+    <div class="breadcrumb">
+        <a href="/ecl-audit-benchmarking-workbench">← Kembali ke Workbench Uji Banding</a>
+        <span class="sep">/</span>
+        <span class="current">Audit Transparansi #{{ record.no_rekening }}</span>
+    </div>
+
+    <!-- Account Detail Header Banner -->
+    <div class="detail-header-card">
+        <div class="detail-title-group">
+            <div class="account-badge font-mono">{{ record.no_rekening }}</div>
+            <h2>{{ record.nama_debitur }}</h2>
+            <div class="meta-pills">
+                <span class="pill">Akad: <strong>{{ record.jenis_akad }}</strong></span>
+                <span class="pill">Segmen: <strong>{{ record.segmen }}</strong></span>
+                <span class="pill">CIF: <strong>{{ record.cif }}</strong></span>
+                <span class="pill">Plafon: <strong>Rp {{ "{:,.2f}".format(record.plafon) }}</strong></span>
+                <span class="pill">Hari Tunggakan: <strong>{{ record.days_past_due }} DPD</strong></span>
+            </div>
+        </div>
+        <div class="status-box">
+            <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap;">
+                <div class="business-rules-tag" title="BR-AUD-01: Modul Read-Only untuk analisis audit tanpa merusak GL" style="margin-bottom: 0;">
+                    🔒 BR-AUD-01: Read-Only Audit Mode
+                </div>
+                <a href="/ecl-audit-benchmarking-workbench/audit/{{ record.no_rekening }}/export-excel" class="btn btn-excel" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;" title="Download Kertas Kerja Audit Rekening Ini (.xlsx)">
+                    <span>📥</span> Download Kertas Kerja Audit (Excel)
+                </a>
+            </div>
+            {% if 'GAP POSITIF' in record.faktor_penyebab_gap %}
+                <div class="status-banner banner-positive">
+                    <div class="banner-icon">⚠️</div>
+                    <div>
+                        <div class="banner-title">GAP POSITIF DETECTED</div>
+                        <div class="banner-desc">Sistem menangkap risiko kualitatif sektor riil yang terlewat oleh DPD.</div>
+                    </div>
+                </div>
+            {% elif 'GAP NEGATIF' in record.faktor_penyebab_gap %}
+                <div class="status-banner banner-negative">
+                    <div class="banner-icon">✂️</div>
+                    <div>
+                        <div class="banner-title">GAP NEGATIF DETECTED</div>
+                        <div class="banner-desc">Sterilisasi unearned margin memisahkan pokok riil bersih Riba/Gharar.</div>
+                    </div>
+                </div>
+            {% else %}
+                <div class="status-banner banner-aligned">
+                    <div class="banner-icon">✅</div>
+                    <div>
+                        <div class="banner-title">ALIGNED CALCULATIONS</div>
+                        <div class="banner-desc">Perhitungan antara versi bank dan aplikasi relatif selaras.</div>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 3 Komponen Utama Side-by-Side Dual-Run Grid -->
+    <div class="three-run-grid">
+        <!-- 1. Metode Bank Card -->
+        <div class="run-card card-jalur-b">
+            <div class="card-tag tag-b">1. Metode Bank / Excel</div>
+            <h3>Hanya DPD & Plafon Kotor</h3>
+            <p class="card-desc">Kalkulasi konvensional murni berbasis DPD dan Baki Debet Kotor.</p>
+            
+            <div class="metric-row">
+                <span class="label">Baki Debet Kotor</span>
+                <span class="value font-mono">Rp {{ "{:,.2f}".format(record.baki_debet_kotor) }}</span>
+            </div>
+            <div class="metric-row">
+                <span class="label">Pilar DPD & Parameter</span>
+                <span class="value font-mono">DPD: {{ record.days_past_due }} Hari</span>
+            </div>
+            <div class="metric-row highlight">
+                <span class="label">Hasil CKPN Metode Bank</span>
+                <span class="value font-mono text-orange">Rp {{ "{:,.2f}".format(record.ckpn_metode_bank) }}</span>
+            </div>
+            <div class="card-footer-note">
+                ℹ️ <em>Incurred Loss: Menangkap risiko setelah tunggakan terjadi.</em>
+            </div>
+        </div>
+
+        <!-- 2. Metode Syariah Murni Card -->
+        <div class="run-card card-jalur-a">
+            <div class="card-tag tag-a">2. Metode Syariah Murni</div>
+            <h3>Grand Master Engine</h3>
+            <p class="card-desc">Ultimate EAD Bersih Margin + PD Markov + LGD NPV DCF + SICR Kualitatif.</p>
+            
+            <div class="metric-row">
+                <span class="label">EAD Bersih (Tanpa Margin Riba)</span>
+                <span class="value font-mono text-cyan">Rp {{ "{:,.2f}".format(record.ead_bersih_syariah) }}</span>
+            </div>
+            <div class="metric-row">
+                <span class="label">Pilar Forward-Looking</span>
+                <span class="value font-mono">Markov + Vasicek FLI</span>
+            </div>
+            <div class="metric-row highlight">
+                <span class="label">Hasil CKPN Syariah Murni</span>
+                <span class="value font-mono text-green">Rp {{ "{:,.2f}".format(record.ckpn_metode_aplikasi) }}</span>
+            </div>
+            <div class="card-footer-note">
+                🛡️ <em>Strict Compliance PSAK 413 Syariah & PSAK 71.</em>
+            </div>
+        </div>
+
+        <!-- 3. Nilai Final Buku Besar Card -->
+        <div class="run-card card-jalur-gl">
+            <div class="card-tag tag-gl">3. Nilai Final Buku Besar</div>
+            <h3>General Ledger / Override</h3>
+            <p class="card-desc">Hasil Override Individual / Persetujuan Komite Risiko pada Buku Besar.</p>
+            
+            <div class="metric-row">
+                <span class="label">Status Override</span>
+                <span class="value font-mono">Grand Master Final</span>
+            </div>
+            <div class="metric-row">
+                <span class="label">Jejak Audit GL</span>
+                <span class="value font-mono">Locked / Verified</span>
+            </div>
+            <div class="metric-row highlight">
+                <span class="label">Nilai CKPN Buku Besar</span>
+                <span class="value font-mono text-purple">Rp {{ "{:,.2f}".format(record.nil_final_buku_besar) }}</span>
+            </div>
+            <div class="card-footer-note">
+                🔒 <em>Audited & Immutable: Angka resmi pembukuan bank.</em>
+            </div>
+        </div>
+    </div>
+
+    <!-- Visualisasi Variance Breakdown (a: Efek Unearned Margin, b: Efek SICR Kualitatif) -->
+    <div class="breakdown-card">
+        <div class="card-header-flex">
+            <div>
+                <h3>Visualisasi Alasan Selisih (Variance Breakdown)</h3>
+                <span class="table-subtitle">Memecah komponen selisih angka menjadi dua faktor utama sesuai standar akuntansi & Syariah</span>
+            </div>
+            <div class="gap-amount-badge {% if record.selisih_gap > 0 %}gap-pos{% elif record.selisih_gap < 0 %}gap-neg{% else %}gap-zero{% endif %}">
+                Selisih Gap Total: {% if record.selisih_gap > 0 %}+{% endif %}Rp {{ "{:,.2f}".format(record.selisih_gap) }}
+            </div>
+        </div>
+
+        <div class="breakdown-body">
+            <!-- Variance Breakdown Components Grid -->
+            <div class="variance-components-grid">
+                <!-- Faktor (a) -->
+                <div class="variance-factor-card">
+                    <div class="factor-header">
+                        <span class="factor-icon">✂️</span>
+                        <div>
+                            <h4>(a) Efek Pembuangan Unearned Margin (Kepatuhan Riba)</h4>
+                            <span class="factor-desc">Dampak akuntansi sterilisasi margin masa depan dari baki debet pokok riil.</span>
+                        </div>
+                    </div>
+                    <div class="factor-value text-cyan font-mono">
+                        Rp {{ "{:,.2f}".format(record.efek_unearned_margin) }}
+                    </div>
+                </div>
+
+                <!-- Faktor (b) -->
+                <div class="variance-factor-card">
+                    <div class="factor-header">
+                        <span class="factor-icon">📊</span>
+                        <div>
+                            <h4>(b) Efek Perhitungan Kualitatif (SICR Sektor Riil)</h4>
+                            <span class="factor-desc">Dampak penangkapan risiko proyek mangkrak / penurunan yield nisbah sebelum DPD.</span>
+                        </div>
+                    </div>
+                    <div class="factor-value text-purple font-mono">
+                        Rp {{ "{:,.2f}".format(record.efek_sicr_kualitatif) }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- BR-AUD-02 Compliance Box -->
+            <div class="sharia-compliance-box">
+                <h4>📜 Standar Kepatuhan Syariah & Penjelasan Teologis (BR-AUD-02)</h4>
+                <div class="sharia-text">
+                    "Selisih sebesar <strong>Rp {{ "{:,.2f}".format(record.selisih_gap) }}</strong> terjadi karena metode sederhana bank masih menggunakan baki debet kotor yang memasukkan pendapatan margin masa depan yang belum halal diakui (Gharar/Riba), serta mengabaikan pemicu pemburukan kualitatif sektor riil. Aplikasi Syariah hadir mengoreksi celah audit ini untuk melindungi modal dan kesucian transaksi bank."
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
